@@ -12,7 +12,7 @@ namespace WebApplication1.Controllers
     public class UserController : Controller
     {
 
-        BakerySystemEntities db = new BakerySystemEntities();
+        BakerySystemEntities1 db = new BakerySystemEntities1();
         // GET: User
         public ActionResult Index(int ?page)
         {
@@ -33,25 +33,33 @@ namespace WebApplication1.Controllers
         [HttpPost]
         public ActionResult SignUp(Customer uvm, HttpPostedFileBase imgfile)
         {
-            string path = uploadimgfile(imgfile);
-            if (path.Equals("-1"))
+            try
             {
-                ViewBag.error = "Image could not be uploaded....";
-            }
-            else
-            {
-                Customer u = new Customer();
-                u.UserName = uvm.UserName;
-                u.EmailAddress = uvm.EmailAddress;
-                u.Password = uvm.Password;
-                u.UserImage = path;
-                u.ContactNumber = uvm.ContactNumber;
-                db.Customers.Add(u);
-                db.SaveChanges();
-                return RedirectToAction("login");
-            
-            }
+                string path = uploadimgfile(imgfile);
+                if (path.Equals("-1"))
+                {
+                    ViewBag.error = "Image could not be uploaded....";
+                }
+                else
+                {
+                    Customer u = new Customer();
+                    u.UserName = uvm.UserName;
+                    u.EmailAddress = uvm.EmailAddress;
+                    u.Password = uvm.Password;
+                    u.HomeAdress = uvm.HomeAdress;
+                    u.UserImage = path;
+                    u.ContactNumber = uvm.ContactNumber;
+                    db.Customers.Add(u);
+                    db.SaveChanges();
+                    return RedirectToAction("login");
 
+                }
+            }
+            catch
+            {
+
+                return View();
+            }
             return View();
         } //method......................... end.....................
         [HttpGet]
@@ -135,6 +143,21 @@ namespace WebApplication1.Controllers
 
            
         }
+        //For search filter
+        [HttpPost]
+        public ActionResult Ads(int? id, int? page,string search)
+        {
+            int pagesize = 9, pageindex = 1;
+            pageindex = page.HasValue ? Convert.ToInt32(page) : 1;
+            var list = db.Products.Where(x => x.ProductName.Contains(search)).OrderByDescending(x => x.ProductID).ToList(); 
+            IPagedList<Product> stu = list.ToPagedList(pageindex, pagesize);
+
+
+            return View(stu);
+
+
+        }
+
 
 
         public ActionResult AllProducts(int? page)
@@ -237,9 +260,119 @@ namespace WebApplication1.Controllers
 
             return RedirectToAction("Index");
         }
+        [HttpGet]
+        public ActionResult Cart()
+        {
+            String user = User.Identity.Name;
+            return View();          
+        }
+        [HttpPost]
+
+        public ActionResult Cart(Product pr)
+        {
+            List<Cart> list = db.Carts.ToList();
+
+            try
+            {
+                string email;
+                email = User.Identity.Name;
+                int userid=0;
+                BakerySystemEntities1 db1 = new BakerySystemEntities1();
+                List<Customer> l1 = db1.Customers.ToList<Customer>();
+                foreach (Customer a in l1)
+                {
+                    if (a.EmailAddress == email)
+                    {
+                        userid = a.CustomerID;
+                        break;
+                    }
+                }
 
 
 
 
+
+
+                Cart p = new Cart();
+                p.Name = pr.ProductName;
+                p.Price = pr.ProductPrice;
+                p.Image = pr.ProductImage;
+                p.Description = pr.ProductDescription;
+
+                list.Add(p);
+                db.Carts.Add(p);                
+                db.SaveChanges();
+
+                return View(list);
+            }
+            catch
+            {
+                return View();
+            }
+
+            
+        }
+
+
+        public ActionResult order()
+        {
+            return View();
+        }
+
+        public ActionResult OrderNow(int? id)
+        {
+            if (id == null)
+            {
+                return new HttpStatusCodeResult(System.Net.HttpStatusCode.BadRequest);
+            }
+            if (Session["CART"] == null)
+            {
+                List<MyCart> IsCart = new List<MyCart>
+                {
+                    new MyCart(db.Products.Find(id),1)
+                };
+                Session["CART"] = IsCart;
+            }
+            else
+            {
+                List<MyCart> IsCart = (List<MyCart>)Session["CART"];
+                int Check = IsExist(id);
+                if(Check==-1)
+                {
+                    IsCart.Add(new MyCart(db.Products.Find(id), 1));
+                }
+                else
+                {
+                    IsCart[Check].Quantity++;
+                }
+              //  IsCart.Add(new MyCart(db.Products.Find(id), 1));
+                Session["CART"] = IsCart;
+            }
+            return View("order");
+        }
+
+        public int IsExist(int? id)
+        {
+            List<MyCart> IsCart = (List<MyCart>)Session["CART"];
+            for(int i=0; i< IsCart.Count; i++)
+            {
+                if(IsCart[i].Product.ProductID==id)
+                {
+                    return i;
+                }
+            }
+            return -1;
+        }
+        public ActionResult DeleteOrder(int? id)
+        {
+            if (id == null)
+            {
+                return new HttpStatusCodeResult(System.Net.HttpStatusCode.BadRequest);
+            }
+            int Check = IsExist(id);
+            List<MyCart> IsCart = (List<MyCart>)Session["CART"];
+            IsCart.RemoveAt(Check);
+            return View("order");
+        }
     }
 }
